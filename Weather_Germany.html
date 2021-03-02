@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+
+<!--@Authors Norman Schmidt, Florian Banasiak
+		alles selber geschrieben :) -->
+
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+
+		<!--load bootstrap-->
+		<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css" integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk" crossorigin="anonymous">
+		<script type="text/javascript" src="./d3.js"></script>
+		<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js" integrity="sha384-DfXdz2htPH0lsSSs5nCTpuj/zy4C+OGpamoFVy38MVBnE+IbbVYUew+OrCXaRkfj" crossorigin="anonymous"></script>
+		<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
+		<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js" integrity="sha384-OgVRvuATP1z7JjHLkuOU7Xw704+h835Lr+6QL9UvYjZE3Ipu6Tp75j7Bh/kR0JKI" crossorigin="anonymous"></script>
+
+		<style>
+			.info {
+				margin-top: 15px;
+				height: 45px;
+			}
+		</style>
+
+	</head>
+	<body>
+
+		<!--Attribute Dropdown-->
+		<div class="container text-center my-5">
+			<div class="btn-group" id="attribute">
+			  <button type="button" class="btn btn-primary dropdown-toggle" style="padding: 10px 40px;" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+			    <h3>Temperature</h3>
+			  </button>
+			  <div class="dropdown-menu">
+			  </div>
+			</div>
+		</div>
+
+		<br>
+		<br>
+
+		<div class="container">
+			<!--Left Year Dropdown-->
+		  <div class="row">
+		    <div class="col-5" id="map1">
+					<div class="btn-group" id="year1">
+					  <button type="button" class="btn btn-info dropdown-toggle mx-auto" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+					    2019
+					  </button>
+					  <div class="dropdown-menu">
+					  </div>
+					</div>
+					<br>
+		    </div>
+				<!--Right Year Dropdown-->
+		    <div class="col-5" id="map2">
+					<div class="btn-group" id="year2">
+					  <button type="button" class="btn btn-info dropdown-toggle mx-auto" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+					    2019
+					  </button>
+					  <div class="dropdown-menu">
+					  </div>
+					</div>
+					<br>
+		    </div>
+				<div class="col-2" id="explanation">
+					<ul class="list-group text-center" style="font-size:15px">
+					</ul>
+			 </div>
+		  </div>
+		</div>
+		<br>
+
+		<script type="text/javascript">
+
+			//Width and height
+			var w = 430;
+			var h = 550;
+
+			//seleted years
+			var year1 = "2019";
+			var year2 = "2019";
+
+			//data/row of selected year and current attribute
+			var year1Data;
+			var year2Data;
+
+			var attribute = "Temperature";
+
+			//year dropdowns
+			var years = [1991,1992,1993,1994,1995,1996,1997,1998,1999,2000,2001,2002,
+				2003,2004,2005,2006,2007,2008,2009,2010,2011,2012,2013,2014,2015,2016,
+				2017,2018,2019];
+
+			var dropdownYear1 = d3.select("#year1").select("div"),
+	    	options = dropdownYear1.selectAll('a')
+					.data(years)
+					.enter()
+					.append("a")
+					.property("href", "#")
+					.on("click", d => {
+						year1 = d
+						d3.select("#map1").select("button").text(d)
+						getData()
+					})
+					.text(d => d)
+					.classed("dropdown-item", true)
+			var dropdownYear2 = d3.select("#year2").select("div"),
+	    	options = dropdownYear2.selectAll('a')
+					.data(years)
+					.enter()
+					.append("a")
+					.property("href", "#")
+					.on("click", d => {
+						year2 = d
+						d3.select("#map2").select("button").text(d)
+						getData() //get data from year and attribute
+					})
+					.text(d => d)
+					.classed("dropdown-item", true)
+
+			var dropdownYear2 = d3.select("#attribute").select("div"),
+	    	options = dropdownYear2.selectAll('a')
+					.data(["Temperature", "Precipitation", "Sunshine"])
+					.enter()
+					.append("a")
+					.property("href", "#")
+					.on("click", d => {
+						attribute = d
+						d3.select("#attribute").select("button").html("<h3>"+d+"</h3>")
+						getData()
+					})
+					.text(d => d)
+					.classed("dropdown-item", true)
+					.style("font-size", "28px")
+
+			//Define map projection
+			var projection = d3.geoAlbers()
+								.center([11, 51])
+								.rotate(90)
+								.parallels([49, 53])
+								.translate([235, 275])
+								.scale(4000);
+
+			//Define path generator
+			var path = d3.geoPath()
+							 .projection(projection);
+
+			//Create SVG elements - maps
+			var svg = d3.select("#map1")
+						.append("svg")
+						.attr("width", w)
+						.attr("height", h)
+						.style("margin-top", "40px")
+			var svg2 = d3.select("#map2")
+						.append("svg")
+						.attr("width", w)
+						.attr("height", h)
+						.style("margin-top", "40px")
+
+			//create information below maps (°C etc.)
+			var info1 = d3.select("#map1")
+						.append("div")
+						.classed("text-center", true)
+						.classed("info", true)
+			var info2 = d3.select("#map2")
+						.append("div")
+						.classed("text-center", true)
+						.classed("info", true)
+
+			//explanation/Legende
+			var exp = d3.select("#explanation").select("ul");
+
+			//Load in GeoJSON data
+			d3.json("bundeslaender.geojson").then(function(json) {
+				//Bind data and create one path per GeoJSON feature
+				svg.selectAll("path")
+				   .data(json.features)
+				   .enter()
+				   .append("path")
+				   .attr("d", path)
+					 .attr("name", d => d.properties.name)
+			 	svg2.selectAll("path")
+				   .data(json.features)
+				   .enter()
+				   .append("path")
+				   .attr("d", path)
+					 .attr("name", d => d.properties.name)
+				getData() //first loading and painting when loading the geo-data
+			});
+
+			function getData(){
+				//get data depending on attribute
+				switch(attribute) {
+					case "Temperature":
+						d3.csv("temperature.csv").then(function(data) {
+							year1Data = data.find(element => element.Jahr == year1)
+							year2Data = data.find(element => element.Jahr == year2)
+							updateMaps() //paint/refresh
+						})
+						break;
+					case "Precipitation":
+						d3.csv("rain.csv").then(function(data) {
+							year1Data = data.find(element => element.Jahr == year1)
+							year2Data = data.find(element => element.Jahr == year2)
+							updateMaps()
+						})
+						break;
+					case "Sunshine":
+						d3.csv("sun.csv").then(function(data) {
+							year1Data = data.find(element => element.Jahr == year1)
+							year2Data = data.find(element => element.Jahr == year2)
+							updateMaps()
+						})
+						break;
+					default:
+						return;
+				}
+			}
+
+			function updateMaps(){
+				// add weather data to paths
+				svg.selectAll("path")
+					.each(function (d, i) {
+						var name = d3.select(this).attr("name")
+						d3.select(this)
+							.datum(year1Data[name])
+					});
+				svg2.selectAll("path")
+					.each(function (d, i) {
+						var name = d3.select(this).attr("name")
+						d3.select(this)
+							.datum(year2Data[name])
+					});
+
+				//generate treshold color scale
+				var colorScale = createColorScale(svg.selectAll("path").data(), svg2.selectAll("path").data());
+
+				//paint maps
+				svg.selectAll("path")
+					.style("fill", d => colorScale(d))
+					.on("mouseover", function(d) {
+						 var a = d3.select(this)
+						 a.classed("selected", true)
+						 	.transition()
+							.attr("transform", "scale(1.03)")
+							.style("fill", "yellowgreen")
+
+						//format info-text
+						var unit = ""
+						var x1 = 0.0
+						var x2 = year2Data[d3.select(this).attr("name")]
+						if(attribute === "Temperature"){
+							unit = " °C"
+							x1 = Math.floor(d * 100) / 100;
+							x1.toFixed(2);
+							x2 = Math.floor(x2 * 100) / 100;
+							x2.toFixed(2);
+						}
+						else if(attribute === "Precipitation"){
+							unit = " mm"
+							x1 = parseInt(d)
+							x2 = parseInt(x2)
+						}
+						else if(attribute === "Sunshine"){
+							unit = " hours"
+							x1 = parseInt(d)
+							x2 = parseInt(x2)
+						}
+						//set info-text
+						info1.text(a.attr("name")+": "+x1+" "+unit)
+						info2.text(a.attr("name")+": "+x2+" "+unit)
+					 	})
+					.on("mouseout", function() {
+						d3.select(this)
+							.transition()
+ 							.attr("transform", "scale(1)")
+							.style("fill", d => colorScale(d))
+						info1.text("")
+						info2.text("")
+					})
+				svg2.selectAll("path")
+					.style("fill", d => colorScale(d))
+					.on("mouseover", function(d) {
+						var a = d3.select(this)
+						a.classed("selected", true)
+						 	.transition()
+							.attr("transform", "scale(1.03)")
+							.style("fill", "yellowgreen")
+						var unit = ""
+						var x1 = 0.0;
+						var x2 = year1Data[d3.select(this).attr("name")]
+						if(attribute === "Temperature"){
+							unit = " °C"
+							x1 = Math.floor(d * 100) / 100;
+							x1.toFixed(2);
+							x2 = Math.floor(x2 * 100) / 100;
+							x2.toFixed(2);
+						}
+						else if(attribute === "Precipitation"){
+							unit = " mm"
+							x1 = parseInt(d)
+							x2 = parseInt(x2)
+						}
+						else if(attribute === "Sunshine"){
+							unit = " hours"
+							x1 = parseInt(d)
+							x2 = parseInt(x2)
+						}
+
+						info2.text(a.attr("name")+": "+x1+" "+unit)
+						info1.text(a.attr("name")+": "+x2+" "+unit)
+				 	})
+					.on("mouseout", function() {
+						d3.select(this)
+							.transition()
+ 							.attr("transform", "scale(1)")
+							.style("fill", d => colorScale(d))
+						info2.text("")
+						info1.text("")
+					})
+				//empty explanation
+				exp.selectAll("li")
+					.remove()
+				//refill explanation with domain of current colorScale
+				exp.selectAll("li")
+					.append("li")
+					.data(colorScale.domain())
+					.enter()
+					.append("li")
+					.text(d => {
+						//format explanation text
+						var unit = ""
+						var x = 0.0;
+						if(attribute === "Temperature"){
+							unit = " °C"
+							x = Math.floor(d * 100) / 100;
+							x.toFixed(2);
+						}
+						else if(attribute === "Precipitation"){
+							unit = " mm"
+							x = parseInt(d)
+						}
+						else if(attribute === "Sunshine"){
+							unit = " hours"
+							x = parseInt(d)
+						}
+						return ">= "+x + unit;
+					})
+					.classed("list-group-item", true)
+					.style("background-color", d => colorScale(d)) //paint explanation list items
+					.style("color", (d,i) => {
+						if(i <= 2) return "black"
+						else return "white"
+					})
+			}
+
+			function createColorScale(data1, data2) {
+					data = data1.concat(data2)
+					var max = d3.max(data, d => { //get min and max values
+						if(typeof d === "string") return parseFloat(d)
+						else return 0 //only if numbers are given
+					})
+					var min = d3.min(data, d => parseFloat(d))
+					var domain = []
+					var levels = 8 //amount of different gradations
+					for(var i = min; i<=max+(max-min)/levels/2; i+=(max-min)/levels) {
+						domain.push(i)
+					}
+					domain = domain.slice(0,domain.length-1)
+					//choose different colors for different attributes
+					switch (attribute) {
+						case "Temperature":
+							var colorScale = d3.scaleThreshold()
+								.domain(domain)
+								.range(d3.schemeReds[levels+1]);
+							break;
+						case "Precipitation":
+							var colorScale = d3.scaleThreshold()
+								.domain(domain)
+								.range(d3.schemeBlues[levels+1]);
+							break;
+						case "Sunshine":
+							var colorScale = d3.scaleThreshold()
+								.domain(domain)
+								.range(d3.schemeOranges[levels+1]);
+							break;
+						default:
+							return null
+					}
+					return colorScale;
+			}
+
+		</script>
+	</body>
+</html>
